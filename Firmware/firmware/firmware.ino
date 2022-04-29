@@ -14,6 +14,7 @@ IRrecv IRPort(Pin_IRPort);
 decode_results IRPortResults;
 
 int Pin_Saw = 6;
+bool UseSaw = true;
 
 int Pin_Motors1 = A0;
 int Pin_Motors2 = A1;
@@ -46,7 +47,12 @@ void setup()
   digitalWrite(Pin_Motors3, LOW);
   digitalWrite(Pin_Motors4, LOW);
 
-  Serial.println("Started");
+  pinMode(2, OUTPUT);
+  digitalWrite(2, HIGH);
+  pinMode(3, OUTPUT);
+  digitalWrite(3, HIGH);
+
+  //Serial.println("Started");
 }
 
 void loop() 
@@ -85,7 +91,29 @@ void loop()
   }
   if(ControlSet == 2)
   {
-    Fight();
+    GoFight();
+  }
+
+    // Use Saw
+  if(RemoteCMD == "16740495")
+  {
+    UseSaw = true;
+    digitalWrite(Pin_Saw, HIGH);
+    delay(350);
+    digitalWrite(Pin_Saw, LOW);
+    delay(250);
+    digitalWrite(Pin_Saw, HIGH);
+    delay(350);
+    digitalWrite(Pin_Saw, LOW);
+    RemoteCMD = "";
+  }
+  if(RemoteCMD == "16730295")
+  {
+    UseSaw = false;
+    digitalWrite(Pin_Saw, HIGH);
+    delay(777);
+    digitalWrite(Pin_Saw, LOW);
+    RemoteCMD = "";
   }
 }
 
@@ -165,8 +193,7 @@ void RemoteControl()
 // Settings
 int TriggerLenght = 75;
 int Sonar1Lenght = 0;
-int FoundingFrames1ST = 20;  // 100 Frame = 1 Second
-int FoundingFrames2ST = 50;  // 100 Frame = 1 Second
+int FoundingFrames = 14;  // 100 Frame = 1 Second
 
 // Varibles
 int State = 0;
@@ -180,35 +207,106 @@ bool ExitLoop = false;
 
 void UpdateSonar()
 {
-  Sonar1Lenght = Sonar1.ping_cm();
-  if(Sonar1Lenght == 0)
+  Sonar1Lenght = Sonar1.ping();  //Sonar1.ping_cm();
+  if(Sonar1Lenght > 3500)
   {
-    Sonar1Lenght = 100;
+    Sonar1Lenght = 0;
   }
   Serial.println("St:" + String(State) + "  SL:" + String(Sonar1Lenght) + "  RL:" + String(RefoundLoop));
 }
 
+bool Capture = false;
+void GoFight()
+{
+  UpdateSonar();
+
+  if(Sonar1Lenght > 0 && UseSaw == true)
+  {
+    digitalWrite(Pin_Saw, HIGH);
+  }
+  else
+  {
+    digitalWrite(Pin_Saw, LOW);
+  }
+
+  if(Sonar1Lenght > 0)
+  {
+    if(Capture == false)
+    {
+      analogWrite(Pin_Motors1, 0);
+      analogWrite(Pin_Motors2, 0);
+      analogWrite(Pin_Motors3, 0);
+      analogWrite(Pin_Motors4, 150);
+      delay(152);
+    }
+
+    Capture = true;
+    analogWrite(Pin_Motors1, 0);
+    analogWrite(Pin_Motors2, 255);
+    analogWrite(Pin_Motors3, 0);
+    analogWrite(Pin_Motors4, 255);
+  }
+  else
+  {
+    Capture = false;
+    analogWrite(Pin_Motors1, 0);
+    analogWrite(Pin_Motors2, 150);
+    analogWrite(Pin_Motors3, 150);
+    analogWrite(Pin_Motors4, 0);
+  }
+}
+
+
+
+
 void Fight()
 {
-  delay(10);
+  
   UpdateSonar();
   
-  if(Sonar1Lenght < TriggerLenght)
+  if(Sonar1Lenght > 0)
   {
-    State = 1;
     digitalWrite(Pin_Motors1, LOW);
     digitalWrite(Pin_Motors2, HIGH);
     digitalWrite(Pin_Motors3, LOW);
     digitalWrite(Pin_Motors4, HIGH);
+    digitalWrite(Pin_Saw, HIGH);
+  }
+  else
+  {
+    digitalWrite(Pin_Motors1, LOW);
+    digitalWrite(Pin_Motors2, HIGH);
+    digitalWrite(Pin_Motors3, HIGH);
+    digitalWrite(Pin_Motors4, LOW);
+    digitalWrite(Pin_Saw, LOW);
+  }
+}
+
+void Fight2()
+{
+  UpdateSonar();
+  
+  if(Sonar1Lenght > 0)
+  {
+   delay(100);
+  }
+
+  if(Sonar1Lenght > 0)
+  {
+    State = 1;
+    analogWrite(Pin_Motors1, 0);
+    analogWrite(Pin_Motors2, 255);
+    analogWrite(Pin_Motors3, 0);
+    analogWrite(Pin_Motors4, 255);
   }
   else
   {
     if(State == 0)
     {
-      digitalWrite(Pin_Motors1, LOW);
-      digitalWrite(Pin_Motors2, HIGH);
-      digitalWrite(Pin_Motors3, HIGH);
-      digitalWrite(Pin_Motors4, LOW);
+      analogWrite(Pin_Motors1, 0);
+      analogWrite(Pin_Motors2, 150);
+      analogWrite(Pin_Motors3, 150);
+      analogWrite(Pin_Motors4, 0);
     }
     if(State == 1)
     {
@@ -222,26 +320,23 @@ void Fight()
     if(State == 3)
     {
       ExitLoop = false;
-      while (RefoundLoop < (FoundingFrames1ST + FoundingFrames2ST) && ExitLoop == false)
+      while (ExitLoop == false)
       {
-        if(RefoundLoop < FoundingFrames1ST)
+        if(RefoundLoop < FoundingFrames)
         {
-          digitalWrite(Pin_Motors1, LOW);
-          digitalWrite(Pin_Motors2, HIGH);
-          digitalWrite(Pin_Motors3, HIGH);
-          digitalWrite(Pin_Motors4, LOW);
+          analogWrite(Pin_Motors1, 150);
+          analogWrite(Pin_Motors2, 0);
+          analogWrite(Pin_Motors3, 0);
+          analogWrite(Pin_Motors4, 150);
         }
         else
         {
-          digitalWrite(Pin_Motors1, HIGH);
-          digitalWrite(Pin_Motors2, LOW);
-          digitalWrite(Pin_Motors3, LOW);
-          digitalWrite(Pin_Motors4, HIGH);
+          ExitLoop = true;
         }
 
         UpdateSonar();
 
-        if(Sonar1Lenght < TriggerLenght)
+        if(Sonar1Lenght > 0)
         {
            State = 1;
            ExitLoop = true;
